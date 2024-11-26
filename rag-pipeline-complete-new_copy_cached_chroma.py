@@ -4613,20 +4613,26 @@ class RAGPipeline:
                 # Process document if not cached
                 logger.info("Processing document and creating chunks")
                 text, metadata = self.doc_processor.read_document(file_path)
+                logger.info("Processing document and creating chunks www")
                 chunks = self.chunking_strategy.create_chunks(text, metadata)
+                logger.info("Processing document and creating chunks www fddffd")
                 
                 # Save to cache
                 self.chunk_cache.save_chunks(chunks, file_path)
+                logger.info("Processing document and creating chunks www fddff asadsadsd")
                 
                 chunk_texts = [chunk['text'] for chunk in chunks]
                 # chunk_metadata = [chunk['metadata'].__dict__ for chunk in chunks]
+                logger.info("Processing document and creating chunks www fddff asadsadsdasdsd")
 
                 chunk_metadata = []
                 for chunk in chunks:
                     if isinstance(chunk['metadata'], dict):
+                        logger.info("Processing document and creating chunks www fddff asa   asd  dsadsdasdsd")
                         # If already a dict, use as is
                         chunk_metadata.append(chunk['metadata'])
                     else:
+                        logger.info("Processing document and creating chunks www fddff asa   asd  dsadsdasdsd sdasaddsa")
                         # Convert ChunkMetadata object to dict
                         meta_dict = {
                             'source': chunk['metadata'].source,
@@ -4643,9 +4649,12 @@ class RAGPipeline:
                         
                 num_chunks = len(chunks)
 
+            logger.info("Processing document and creating chunks www fddff asa   asd  dsadsdasdsd sdasaddsa emmmb")
 
             # Generate embeddings (will use embedding cache internally)
             embeddings = self.embedding_model.generate_embeddings(chunk_texts)
+
+            logger.info("Processing document and creating chunks www fddff asa   asd  dsadsdasdsd sdasaddsa emmmb kfkfkf")
 
             # Add logging for debugging
             self.logger.info(f"Generated {len(embeddings)} embeddings")
