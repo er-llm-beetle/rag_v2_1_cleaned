@@ -2753,104 +2753,6 @@ class HyDEGenerator:
         
 
 # pipeline version:
-# class ReRanker:
-#     """Handles reranking of retrieved documents using Hugging Face pipeline"""
-    
-#     def __init__(
-#         self,
-#         model_name: str = "BAAI/bge-reranker-v2-m3",
-#         device: str = "cuda" if torch.cuda.is_available() else "cpu"
-#     ):
-#         self.device = device
-#         logger.info(f"Initializing ReRanker on device: {self.device}")
-
-#         # Initialize using pipeline
-#         try:
-#             from transformers import pipeline
-#             self.reranker = pipeline(
-#                 "text-classification",
-#                 model=model_name,
-#                 device=self.device,
-#                 model_kwargs={"torch_dtype": torch.float16} if device == "cuda" else {}
-#             )
-#         except Exception as e:
-#             logger.error(f"Failed to initialize reranker pipeline: {str(e)}")
-#             raise
-
-#     def _prepare_pair(self, query: str, doc_text: str, max_length: int = 512) -> str:
-#         """Prepare text pair for reranking"""
-#         query = query[:max_length // 4]
-#         remaining_length = max_length - len(query) - 10
-#         doc_text = doc_text[:remaining_length]
-#         return query, doc_text
-
-#     def rerank(
-#         self,
-#         query: str,
-#         documents: List[Dict]
-#     ) -> List[Dict]:
-#         """Rerank documents using pipeline scoring"""
-#         try:
-#             logger.info(f"Reranking {len(documents)} documents")
-#             reranked_docs = []
-            
-#             for doc in documents:
-#                 try:
-#                     # Clean and prepare text
-#                     doc_text = clean_text(doc.get('text', ''))
-#                     truncated_query, truncated_text = self._prepare_pair(query, doc_text)
-                    
-#                     # Format input for reranker
-#                     pair = {"text": truncated_query, "text_pair": truncated_text}
-                    
-#                     # Get score using pipeline
-#                     result = self.reranker(pair, truncation=True, max_length=512)
-#                     score = result[0]["score"]  # Get probability score
-                    
-#                     # Combine with original score
-#                     original_score = doc.get('score', 0.0)
-#                     combined_score = 0.7 * score + 0.3 * original_score
-                    
-#                     # Create reranked document
-#                     doc_copy = doc.copy()
-#                     doc_copy['rerank_score'] = float(combined_score)
-#                     reranked_docs.append(doc_copy)
-                    
-#                 except Exception as e:
-#                     logger.warning(f"Failed to rerank document: {str(e)}")
-#                     # Fallback to original score
-#                     doc_copy = doc.copy()
-#                     doc_copy['rerank_score'] = doc.get('score', 0.0)
-#                     reranked_docs.append(doc_copy)
-                
-#                 # Clean up GPU memory
-#                 if self.device == "cuda":
-#                     torch.cuda.empty_cache()
-        
-#             # Sort by rerank score
-#             reranked_docs.sort(key=lambda x: x['rerank_score'], reverse=True)
-#             logger.info("Reranking completed successfully")
-            
-#             return reranked_docs
-            
-#         except Exception as e:
-#             logger.error(f"Reranking failed: {str(e)}")
-#             # Return original documents with original scores
-#             return [dict(doc, rerank_score=doc.get('score', 0.0)) for doc in documents]
-        
-#         finally:
-#             if self.device == "cuda":
-#                 torch.cuda.empty_cache()
-
-#     def __del__(self):
-#         """Cleanup resources"""
-#         try:
-#             if hasattr(self, 'device') and self.device == "cuda":
-#                 torch.cuda.empty_cache()
-#         except:
-#             pass
-
-
 class ReRanker:
     """Handles reranking of retrieved documents using Hugging Face pipeline"""
     
@@ -2875,18 +2777,9 @@ class ReRanker:
             logger.error(f"Failed to initialize reranker pipeline: {str(e)}")
             raise
 
-    def _prepare_pair(self, query: str, doc_text: str, max_length: int = 512) -> tuple[str, str]:
+    def _prepare_pair(self, query: str, doc_text: str, max_length: int = 512) -> str:
         """Prepare text pair for reranking"""
-        # Ensure inputs are strings
-        query = str(query)[:max_length // 4]
-        doc_text = str(doc_text)
-        
-        # Ensure minimum lengths
-        if not query.strip():
-            query = "empty query"
-        if not doc_text.strip():
-            doc_text = "empty document"
-            
+        query = query[:max_length // 4]
         remaining_length = max_length - len(query) - 10
         doc_text = doc_text[:remaining_length]
         return query, doc_text
@@ -2901,56 +2794,33 @@ class ReRanker:
             logger.info(f"Reranking {len(documents)} documents")
             reranked_docs = []
             
-            for idx, doc in enumerate(documents):
+            for doc in documents:
                 try:
                     # Clean and prepare text
                     doc_text = clean_text(doc.get('text', ''))
                     truncated_query, truncated_text = self._prepare_pair(query, doc_text)
                     
                     # Format input for reranker
-                    pair = {
-                        "text": truncated_query,
-                        "text_pair": truncated_text
-                    }
-                    
-                    # Log the input for debugging
-                    logger.debug(f"Reranking document {idx}")
-                    logger.debug(f"Query length: {len(truncated_query)}")
-                    logger.debug(f"Text length: {len(truncated_text)}")
+                    pair = {"text": truncated_query, "text_pair": truncated_text}
                     
                     # Get score using pipeline
-                    result = self.reranker(
-                        pair,
-                        truncation=True,
-                        max_length=512,
-                        padding=True
-                    )
-                    
-                    if not result or not isinstance(result, list) or not result[0].get("score"):
-                        raise ValueError(f"Invalid reranker result: {result}")
-                    
-                    score = float(result[0]["score"])  # Explicitly convert to float
+                    result = self.reranker(pair, truncation=True, max_length=512)
+                    score = result[0]["score"]  # Get probability score
                     
                     # Combine with original score
-                    original_score = float(doc.get('score', 0.0))
+                    original_score = doc.get('score', 0.0)
                     combined_score = 0.7 * score + 0.3 * original_score
                     
                     # Create reranked document
                     doc_copy = doc.copy()
-                    doc_copy['rerank_score'] = combined_score
-                    doc_copy['original_score'] = original_score
-                    doc_copy['reranker_score'] = score
+                    doc_copy['rerank_score'] = float(combined_score)
                     reranked_docs.append(doc_copy)
                     
                 except Exception as e:
-                    logger.warning(f"Failed to rerank document {idx}: {str(e)}")
-                    # Log more details for debugging
-                    logger.debug(f"Document content: {doc.get('text', '')[:100]}...")
-                    
+                    logger.warning(f"Failed to rerank document: {str(e)}")
                     # Fallback to original score
                     doc_copy = doc.copy()
-                    doc_copy['rerank_score'] = float(doc.get('score', 0.0))
-                    doc_copy['reranker_error'] = str(e)
+                    doc_copy['rerank_score'] = doc.get('score', 0.0)
                     reranked_docs.append(doc_copy)
                 
                 # Clean up GPU memory
@@ -2979,6 +2849,136 @@ class ReRanker:
                 torch.cuda.empty_cache()
         except:
             pass
+
+
+# class ReRanker:
+#     """Handles reranking of retrieved documents using Hugging Face pipeline"""
+    
+#     def __init__(
+#         self,
+#         model_name: str = "BAAI/bge-reranker-v2-m3",
+#         device: str = "cuda" if torch.cuda.is_available() else "cpu"
+#     ):
+#         self.device = device
+#         logger.info(f"Initializing ReRanker on device: {self.device}")
+
+#         # Initialize using pipeline
+#         try:
+#             from transformers import pipeline
+#             self.reranker = pipeline(
+#                 "text-classification",
+#                 model=model_name,
+#                 device=self.device,
+#                 model_kwargs={"torch_dtype": torch.float16} if device == "cuda" else {}
+#             )
+#         except Exception as e:
+#             logger.error(f"Failed to initialize reranker pipeline: {str(e)}")
+#             raise
+
+#     def _prepare_pair(self, query: str, doc_text: str, max_length: int = 512) -> tuple[str, str]:
+#         """Prepare text pair for reranking"""
+#         # Ensure inputs are strings
+#         query = str(query)[:max_length // 4]
+#         doc_text = str(doc_text)
+        
+#         # Ensure minimum lengths
+#         if not query.strip():
+#             query = "empty query"
+#         if not doc_text.strip():
+#             doc_text = "empty document"
+            
+#         remaining_length = max_length - len(query) - 10
+#         doc_text = doc_text[:remaining_length]
+#         return query, doc_text
+
+#     def rerank(
+#         self,
+#         query: str,
+#         documents: List[Dict]
+#     ) -> List[Dict]:
+#         """Rerank documents using pipeline scoring"""
+#         try:
+#             logger.info(f"Reranking {len(documents)} documents")
+#             reranked_docs = []
+            
+#             for idx, doc in enumerate(documents):
+#                 try:
+#                     # Clean and prepare text
+#                     doc_text = clean_text(doc.get('text', ''))
+#                     truncated_query, truncated_text = self._prepare_pair(query, doc_text)
+                    
+#                     # Format input for reranker
+#                     pair = {
+#                         "text": truncated_query,
+#                         "text_pair": truncated_text
+#                     }
+                    
+#                     # Log the input for debugging
+#                     logger.debug(f"Reranking document {idx}")
+#                     logger.debug(f"Query length: {len(truncated_query)}")
+#                     logger.debug(f"Text length: {len(truncated_text)}")
+                    
+#                     # Get score using pipeline
+#                     result = self.reranker(
+#                         pair,
+#                         truncation=True,
+#                         max_length=512,
+#                         padding=True
+#                     )
+                    
+#                     if not result or not isinstance(result, list) or not result[0].get("score"):
+#                         raise ValueError(f"Invalid reranker result: {result}")
+                    
+#                     score = float(result[0]["score"])  # Explicitly convert to float
+                    
+#                     # Combine with original score
+#                     original_score = float(doc.get('score', 0.0))
+#                     combined_score = 0.7 * score + 0.3 * original_score
+                    
+#                     # Create reranked document
+#                     doc_copy = doc.copy()
+#                     doc_copy['rerank_score'] = combined_score
+#                     doc_copy['original_score'] = original_score
+#                     doc_copy['reranker_score'] = score
+#                     reranked_docs.append(doc_copy)
+                    
+#                 except Exception as e:
+#                     logger.warning(f"Failed to rerank document {idx}: {str(e)}")
+#                     # Log more details for debugging
+#                     logger.debug(f"Document content: {doc.get('text', '')[:100]}...")
+                    
+#                     # Fallback to original score
+#                     doc_copy = doc.copy()
+#                     doc_copy['rerank_score'] = float(doc.get('score', 0.0))
+#                     doc_copy['reranker_error'] = str(e)
+#                     reranked_docs.append(doc_copy)
+                
+#                 # Clean up GPU memory
+#                 if self.device == "cuda":
+#                     torch.cuda.empty_cache()
+        
+#             # Sort by rerank score
+#             reranked_docs.sort(key=lambda x: x['rerank_score'], reverse=True)
+#             logger.info("Reranking completed successfully")
+            
+#             return reranked_docs
+            
+#         except Exception as e:
+#             logger.error(f"Reranking failed: {str(e)}")
+#             # Return original documents with original scores
+#             return [dict(doc, rerank_score=doc.get('score', 0.0)) for doc in documents]
+        
+#         finally:
+#             if self.device == "cuda":
+#                 torch.cuda.empty_cache()
+
+#     def __del__(self):
+#         """Cleanup resources"""
+#         try:
+#             if hasattr(self, 'device') and self.device == "cuda":
+#                 torch.cuda.empty_cache()
+#         except:
+#             pass
 
 
 
